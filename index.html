@@ -1,0 +1,1487 @@
+                                                                        <!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Synthia Controller</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+    /* Toast animation */
+    @keyframes slideIn {
+      from { transform: translateX(110%); opacity: 0; }
+      to   { transform: translateX(0);   opacity: 1; }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to   { opacity: 0; }
+    }
+    .toast-enter { animation: slideIn 0.3s ease-out forwards; }
+    .toast-exit  { animation: fadeOut 0.4s ease-in forwards; }
+
+    /* Connect button spinner */
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    .btn-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    /* Active preset glow — explicit per-color to avoid CSS var runtime issues */
+    .preset-active-blue  { box-shadow: 0 0 0 3px #3b82f6, 0 0 20px 4px rgba(59,130,246,0.45); border-color: #3b82f6 !important; }
+    .preset-active-red   { box-shadow: 0 0 0 3px #ef4444, 0 0 20px 4px rgba(239,68,68,0.45);  border-color: #ef4444 !important; }
+    .preset-active-white { box-shadow: 0 0 0 3px #e2e8f0, 0 0 20px 4px rgba(226,232,240,0.35); border-color: #e2e8f0 !important; }
+    .preset-active-off   { box-shadow: 0 0 0 3px #6b7280, 0 0 20px 4px rgba(107,114,128,0.35); border-color: #6b7280 !important; }
+
+    /* Hex preview code block */
+    .hex-preview-block {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      word-break: break-all;
+    }
+
+    /* Range slider styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+      width: 100%;
+    }
+    input[type=range]::-webkit-slider-track {
+      background: #475569;
+      height: 6px;
+      border-radius: 3px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #6366f1;
+      margin-top: -6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    input[type=range]:hover::-webkit-slider-thumb { background: #818cf8; }
+    input[type=range]:disabled::-webkit-slider-thumb { background: #475569; cursor: not-allowed; }
+    input[type=range]:disabled::-webkit-slider-track { background: #334155; }
+    input[type=range]::-moz-range-track {
+      background: #475569;
+      height: 6px;
+      border-radius: 3px;
+      border: none;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #6366f1;
+      border: none;
+      cursor: pointer;
+    }
+    input[type=range]:hover::-moz-range-thumb { background: #818cf8; }
+    input[type=range]:disabled::-moz-range-thumb { background: #475569; cursor: not-allowed; }
+    input[type=range]:disabled::-moz-range-track { background: #334155; }
+
+    @keyframes pulse-red { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .timer-expired { animation: pulse-red 1s infinite; color: #f87171; }
+    .pattern-row-active { border: 1px solid #6366f1 !important; background: rgba(99,102,241,0.1) !important; }
+  </style>
+</head>
+
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans antialiased">
+
+<!-- ═══════════════════════════════════════════════════════════
+     TOAST CONTAINER
+═══════════════════════════════════════════════════════════ -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 w-80 pointer-events-none"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     HEADER
+═══════════════════════════════════════════════════════════ -->
+<header class="sticky top-0 z-40 bg-gray-950/90 backdrop-blur border-b border-gray-800 px-6 py-4">
+  <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
+    <!-- Title -->
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold leading-none text-white">Synthia Controller</h1>
+        <p class="text-xs text-gray-500 mt-0.5">BLE LED Management</p>
+      </div>
+    </div>
+
+    <!-- Connection controls -->
+    <div class="flex items-center gap-3">
+      <!-- Status dot -->
+      <div class="flex items-center gap-2">
+        <div id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-600 transition-colors duration-300"></div>
+        <span id="status-label" class="text-sm text-gray-400">Disconnected</span>
+      </div>
+
+      <button id="btn-connect"
+        class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700
+               text-white text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400
+               disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5">
+        <span id="btn-connect-label">Connect</span>
+      </button>
+      <button id="btn-disconnect" hidden
+        class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 active:bg-gray-800
+               text-white text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400">
+        Disconnect
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MAIN CONTENT
+═══════════════════════════════════════════════════════════ -->
+<main class="max-w-5xl mx-auto px-6 py-8 space-y-8">
+
+  <!-- ── DISCONNECTED STATE ── -->
+  <section id="disconnected-state" class="flex flex-col items-center justify-center py-16 gap-5 text-center">
+    <div class="w-20 h-20 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-2">
+      <svg class="w-10 h-10 text-indigo-500 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
+      </svg>
+    </div>
+    <div>
+      <h3 class="text-lg font-semibold text-white mb-1">No device connected</h3>
+      <p class="text-sm text-gray-500 max-w-xs leading-relaxed">
+        Press <span class="text-indigo-400 font-medium">Connect</span> to scan for your Synthia LED controller via Bluetooth.
+        Make sure the device is powered on and nearby.
+      </p>
+    </div>
+    <div class="flex items-center gap-2 text-xs text-gray-600 mt-1">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke-width="2"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01"/>
+      </svg>
+      Requires Chrome or Edge on desktop
+    </div>
+  </section>
+
+  <!-- ── STATUS DASHBOARD ── -->
+  <section id="dashboard" class="hidden">
+    <h2 class="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 mb-5 flex items-center gap-2">
+      <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400"></span>
+      Live Status
+    </h2>
+    <!-- Primary row: Battery + Brightness get more weight (span 2 cols each on sm) -->
+    <div class="grid grid-cols-2 gap-4 mb-4">
+
+      <!-- Battery — primary card -->
+      <div class="bg-gray-900 rounded-2xl p-5 border border-gray-800 ring-1 ring-gray-700/40">
+        <div class="flex items-center gap-2 mb-3">
+          <svg id="battery-icon" class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="1" y="6" width="18" height="12" rx="2" stroke-width="2"/>
+            <path d="M23 13v-2" stroke-width="2" stroke-linecap="round"/>
+            <rect x="3" y="8" width="12" height="8" rx="1" fill="currentColor" id="battery-fill"/>
+          </svg>
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Battery</span>
+        </div>
+        <p id="battery-val" class="text-3xl font-bold text-white tabular-nums">—</p>
+      </div>
+
+      <!-- Brightness — primary card -->
+      <div class="bg-gray-900 rounded-2xl p-5 border border-gray-800 ring-1 ring-gray-700/40" id="brightness-card">
+        <div class="flex items-center gap-2 mb-3">
+          <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 3v1m0 16v1m8.485-8.485h-1M4.515 12H3.515m14.142-5.657l-.707.707M7.05 16.95l-.707.707M16.95 16.95l-.707.707M7.05 7.05l-.707.707M12 5a7 7 0 100 14A7 7 0 0012 5z"/>
+          </svg>
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Brightness</span>
+        </div>
+        <p id="brightness-val" class="text-3xl font-bold text-white tabular-nums mb-3">—</p>
+        <div class="h-3 bg-gray-800 rounded-full overflow-hidden">
+          <div id="brightness-bar" class="h-full bg-gradient-to-r from-yellow-500 to-yellow-300 rounded-full transition-all duration-300" style="width:0%"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Secondary row: Button states -->
+    <div class="grid grid-cols-2 gap-4">
+
+      <!-- Button 1: Decrease Brightness -->
+      <div class="bg-gray-900/60 rounded-xl p-4 border border-gray-800/70">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
+          </svg>
+          <span class="text-xs text-gray-500">Decrease Brightness</span>
+        </div>
+        <p id="btn1-val" class="text-xl font-bold text-white tabular-nums">—</p>
+      </div>
+
+      <!-- Button 2: Increase Brightness -->
+      <div class="bg-gray-900/60 rounded-xl p-4 border border-gray-800/70">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+          </svg>
+          <span class="text-xs text-gray-500">Increase Brightness</span>
+        </div>
+        <p id="btn2-val" class="text-xl font-bold text-white tabular-nums">—</p>
+      </div>
+    </div>
+
+    <!-- Command Timer card -->
+    <div class="mt-4">
+      <div class="bg-slate-800 rounded-xl p-4 flex flex-col gap-1">
+        <span class="text-xs text-slate-400 uppercase tracking-wider">Command Timer</span>
+        <span id="cmd-timer-value" class="text-2xl font-bold text-indigo-300">--:--</span>
+        <span class="text-xs text-slate-500">countdown / elapsed</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── GLOBAL STOP ── -->
+  <button id="global-stop" hidden onclick="globalStop()"
+    class="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-red-400 flex items-center justify-center gap-2">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <rect x="6" y="6" width="12" height="12" rx="1" stroke-width="2"/>
+    </svg>
+    Stop All
+  </button>
+
+  <!-- ── PRESET CONTROLS ── -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 mb-5 flex items-center gap-2">
+      <span class="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+      Quick Presets
+    </h2>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+      <!-- Blue preset -->
+      <button data-preset="blue"
+        class="preset-btn relative flex flex-col items-center gap-4 pt-7 pb-5 px-4 rounded-2xl
+               bg-gray-900 border-2 border-gray-700 hover:border-blue-500 hover:bg-blue-950/30
+               disabled:opacity-40 disabled:cursor-not-allowed
+               transition-all duration-200 focus:outline-none" disabled>
+        <!-- Color swatch — larger, layered rings -->
+        <div class="relative flex items-center justify-center">
+          <div class="absolute w-16 h-16 rounded-full bg-blue-500/10"></div>
+          <div class="absolute w-11 h-11 rounded-full bg-blue-500/20"></div>
+          <div class="w-8 h-8 rounded-full bg-blue-400 shadow-lg shadow-blue-500/40"></div>
+        </div>
+        <div class="text-center mt-1">
+          <p class="text-sm font-semibold text-blue-300 leading-none">Blue</p>
+          <p class="text-xs text-gray-500 mt-1.5">10% · 10 Hz · 5 min</p>
+        </div>
+      </button>
+
+      <!-- Red preset -->
+      <button data-preset="red"
+        class="preset-btn relative flex flex-col items-center gap-4 pt-7 pb-5 px-4 rounded-2xl
+               bg-gray-900 border-2 border-gray-700 hover:border-red-500 hover:bg-red-950/30
+               disabled:opacity-40 disabled:cursor-not-allowed
+               transition-all duration-200 focus:outline-none" disabled>
+        <div class="relative flex items-center justify-center">
+          <div class="absolute w-16 h-16 rounded-full bg-red-500/10"></div>
+          <div class="absolute w-11 h-11 rounded-full bg-red-500/20"></div>
+          <div class="w-8 h-8 rounded-full bg-red-400 shadow-lg shadow-red-500/40"></div>
+        </div>
+        <div class="text-center mt-1">
+          <p class="text-sm font-semibold text-red-300 leading-none">Red</p>
+          <p class="text-xs text-gray-500 mt-1.5">10% · 10 Hz · 5 min</p>
+        </div>
+      </button>
+
+      <!-- White preset -->
+      <button data-preset="white"
+        class="preset-btn relative flex flex-col items-center gap-4 pt-7 pb-5 px-4 rounded-2xl
+               bg-gray-900 border-2 border-gray-700 hover:border-gray-300 hover:bg-gray-800/60
+               disabled:opacity-40 disabled:cursor-not-allowed
+               transition-all duration-200 focus:outline-none" disabled>
+        <div class="relative flex items-center justify-center">
+          <div class="absolute w-16 h-16 rounded-full bg-white/5"></div>
+          <div class="absolute w-11 h-11 rounded-full bg-white/10"></div>
+          <div class="w-8 h-8 rounded-full bg-white shadow-lg shadow-white/20"></div>
+        </div>
+        <div class="text-center mt-1">
+          <p class="text-sm font-semibold text-gray-100 leading-none">White</p>
+          <p class="text-xs text-gray-500 mt-1.5">10% · 10 Hz · 5 min</p>
+        </div>
+      </button>
+
+      <!-- OFF preset -->
+      <button data-preset="off"
+        class="preset-btn relative flex flex-col items-center gap-4 pt-7 pb-5 px-4 rounded-2xl
+               bg-gray-900 border-2 border-gray-700 hover:border-gray-500 hover:bg-gray-800/40
+               disabled:opacity-40 disabled:cursor-not-allowed
+               transition-all duration-200 focus:outline-none" disabled>
+        <div class="relative flex items-center justify-center">
+          <div class="absolute w-16 h-16 rounded-full bg-gray-700/30"></div>
+          <div class="absolute w-11 h-11 rounded-full bg-gray-700/40"></div>
+          <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center shadow-lg">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+            </svg>
+          </div>
+        </div>
+        <div class="text-center mt-1">
+          <p class="text-sm font-semibold text-gray-400 leading-none">OFF</p>
+          <p class="text-xs text-gray-600 mt-1.5">Turn off LEDs</p>
+        </div>
+      </button>
+
+    </div>
+  </section>
+
+  <!-- ── MANUAL PANELS ROW ── -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- ── MANUAL BC PANEL ── -->
+    <section class="bg-gray-900 rounded-2xl border border-gray-800 p-6">
+      <div class="mb-6">
+        <div class="flex items-center gap-2 mb-0.5">
+          <span class="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
+          <h2 class="text-sm font-semibold text-white tracking-tight">Manual Control</h2>
+          <span class="text-xs bg-indigo-900/60 text-indigo-300 px-1.5 py-0.5 rounded font-mono">0xBC</span>
+        </div>
+        <p class="text-xs text-gray-500 mt-1 ml-4">Fixed duration lighting command</p>
+      </div>
+
+      <div class="space-y-4">
+
+        <!-- Duration -->
+        <div>
+          <div class="flex justify-between mb-1.5">
+            <label class="text-xs font-medium text-gray-400">Duration <span class="text-gray-600 font-normal">(seconds)</span></label>
+            <span id="bc-duration-label" class="text-xs text-indigo-300 font-mono font-semibold">300s</span>
+          </div>
+          <input id="bc-duration" type="range" min="0" max="65535" value="300" disabled
+            class="w-full disabled:opacity-40"/>
+        </div>
+
+        <!-- Color -->
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1.5">Color</label>
+          <select id="bc-color" disabled
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white
+                   focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
+                   disabled:opacity-40 disabled:cursor-not-allowed transition-opacity">
+            <option value="0x00">🔴 Red</option>
+            <option value="0x01" selected>🔵 Blue</option>
+            <option value="0x02">⚪ White</option>
+            <option value="0x03">🟢 Green</option>
+            <option value="0x04">⛔ Off</option>
+          </select>
+        </div>
+
+        <!-- Frequency -->
+        <div>
+          <div class="flex justify-between mb-1.5">
+            <label class="text-xs font-medium text-gray-400">Frequency</label>
+            <span id="bc-frequency-label" class="text-xs text-indigo-300 font-mono font-semibold">10 Hz</span>
+          </div>
+          <input id="bc-frequency" type="range" min="0" max="255" value="10" disabled
+            class="w-full disabled:opacity-40"/>
+        </div>
+
+        <!-- Brightness -->
+        <div>
+          <div class="flex justify-between mb-1.5">
+            <label class="text-xs font-medium text-gray-400">Brightness</label>
+            <span id="bc-brightness-label" class="text-xs text-indigo-300 font-mono font-semibold">10%</span>
+          </div>
+          <input id="bc-brightness" type="range" min="0" max="100" value="10" disabled
+            class="w-full disabled:opacity-40"/>
+        </div>
+
+        <!-- Hex preview — dedicated code block -->
+        <div class="rounded-lg bg-gray-950 border border-indigo-900/50 px-4 py-3">
+          <p class="text-xs text-indigo-400/70 mb-1 font-medium uppercase tracking-wide">Command bytes</p>
+          <span id="bc-preview" class="hex-preview-block text-indigo-300">BC -- -- -- -- --</span>
+        </div>
+
+        <button id="bc-send" disabled
+          class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700
+                 text-white text-sm font-semibold tracking-wide transition-colors
+                 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          Send BC Command
+        </button>
+      </div>
+    </section>
+
+    <!-- ── MANUAL F1 PANEL ── -->
+    <section class="bg-gray-900 rounded-2xl border border-gray-800 p-6">
+      <div class="mb-6">
+        <div class="flex items-center gap-2 mb-0.5">
+          <span class="inline-block w-2 h-2 rounded-full bg-purple-500"></span>
+          <h2 class="text-sm font-semibold text-white tracking-tight">Breathing Effect</h2>
+          <span class="text-xs bg-purple-900/60 text-purple-300 px-1.5 py-0.5 rounded font-mono">0xF1</span>
+        </div>
+        <p class="text-xs text-gray-500 mt-1 ml-4">Fading animation command</p>
+      </div>
+
+      <div class="space-y-4">
+
+        <!-- Color -->
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1.5">Color</label>
+          <select id="f1-color" disabled
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white
+                   focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent
+                   disabled:opacity-40 disabled:cursor-not-allowed transition-opacity">
+            <option value="0x00">🔴 Red</option>
+            <option value="0x01" selected>🔵 Blue</option>
+            <option value="0x02">⚪ White</option>
+            <option value="0x03">🟢 Green</option>
+            <option value="0x04">⛔ Off</option>
+          </select>
+        </div>
+
+        <!-- Start / End brightness -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <div class="flex justify-between mb-1.5">
+              <label class="text-xs font-medium text-gray-400">Start Bright <span class="text-gray-600 font-normal">(%)</span></label>
+              <span id="f1-start-label" class="text-xs text-purple-300 font-mono font-semibold">0%</span>
+            </div>
+            <input id="f1-start" type="range" min="0" max="100" value="0" disabled
+              class="w-full disabled:opacity-40"/>
+          </div>
+          <div>
+            <div class="flex justify-between mb-1.5">
+              <label class="text-xs font-medium text-gray-400">End Bright <span class="text-gray-600 font-normal">(%)</span></label>
+              <span id="f1-end-label" class="text-xs text-purple-300 font-mono font-semibold">100%</span>
+            </div>
+            <input id="f1-end" type="range" min="0" max="100" value="100" disabled
+              class="w-full disabled:opacity-40"/>
+          </div>
+        </div>
+
+        <!-- Step & Mode -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <div class="flex justify-between mb-1.5">
+              <label class="text-xs font-medium text-gray-400">Step <span class="text-gray-600 font-normal">(%)</span></label>
+              <span id="f1-step-label" class="text-xs text-purple-300 font-mono font-semibold">5%</span>
+            </div>
+            <input id="f1-step" type="range" min="1" max="100" value="5" disabled
+              class="w-full disabled:opacity-40"/>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-400 mb-1.5">Mode</label>
+            <select id="f1-mode" disabled
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white
+                     focus:outline-none focus:ring-2 focus:ring-purple-500
+                     disabled:opacity-40 disabled:cursor-not-allowed">
+              <option value="0x01" selected>Up / Down</option>
+              <option value="0x00">Up Only</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Interval & Cycles -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <div class="flex justify-between mb-1.5">
+              <label class="text-xs font-medium text-gray-400">Interval <span class="text-gray-600 font-normal">(ms/step)</span></label>
+              <span id="f1-interval-label" class="text-xs text-purple-300 font-mono font-semibold">50ms</span>
+            </div>
+            <input id="f1-interval" type="range" min="0" max="100" value="50" disabled
+              class="w-full disabled:opacity-40"/>
+          </div>
+          <div>
+            <div class="flex justify-between mb-1.5">
+              <label class="text-xs font-medium text-gray-400">Cycles</label>
+              <span id="f1-cycles-label" class="text-xs text-purple-300 font-mono font-semibold">10</span>
+            </div>
+            <input id="f1-cycles" type="range" min="0" max="100" value="10" disabled
+              class="w-full disabled:opacity-40"/>
+          </div>
+        </div>
+
+        <!-- Hex preview — dedicated code block -->
+        <div class="rounded-lg bg-gray-950 border border-purple-900/50 px-4 py-3">
+          <p class="text-xs text-purple-400/70 mb-1 font-medium uppercase tracking-wide">Command bytes</p>
+          <span id="f1-preview" class="hex-preview-block text-purple-300">F1 -- -- -- -- -- -- -- -- --</span>
+        </div>
+
+        <button id="f1-send" disabled
+          class="w-full py-3 rounded-xl bg-purple-700 hover:bg-purple-600 active:bg-purple-800
+                 text-white text-sm font-semibold tracking-wide transition-colors
+                 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-purple-400">
+          Send F1 Command
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ── CUSTOM HEX PANEL ── -->
+  <section class="bg-gray-900 rounded-2xl border border-gray-800 p-6">
+    <div class="mb-5">
+      <div class="flex items-center gap-2 mb-0.5">
+        <span class="inline-block w-2 h-2 rounded-full bg-teal-500"></span>
+        <h2 class="text-sm font-semibold text-white tracking-tight">Custom Hex Command</h2>
+        <span class="text-xs bg-teal-900/60 text-teal-300 px-1.5 py-0.5 rounded font-mono">RAW</span>
+      </div>
+      <p class="text-xs text-gray-500 mt-1 ml-4">Send any raw hex bytes directly to the device</p>
+    </div>
+
+    <div class="space-y-4">
+
+      <!-- Input row -->
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">
+          Hex bytes
+          <span class="text-gray-600 font-normal ml-1">— space or comma separated, e.g. <code class="text-teal-400">BC 01 2C 01 0A 0A</code></span>
+        </label>
+        <div class="flex gap-2">
+          <input id="hex-input" type="text" placeholder="BC 01 2C 01 0A 0A" disabled
+            spellcheck="false" autocomplete="off"
+            class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono
+                   placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent
+                   disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"/>
+          <button id="hex-clear" disabled
+            class="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700
+                   text-gray-400 hover:text-white text-xs transition-colors
+                   disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none">
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <!-- Parsed preview + byte count -->
+      <div class="rounded-lg bg-gray-950 border border-teal-900/50 px-4 py-3">
+        <div class="flex items-center justify-between mb-1">
+          <p class="text-xs text-teal-400/70 font-medium uppercase tracking-wide">Parsed bytes</p>
+          <span id="hex-byte-count" class="text-xs text-gray-600 font-mono">0 bytes</span>
+        </div>
+        <span id="hex-parsed" class="hex-preview-block text-teal-300">—</span>
+        <p id="hex-error" class="text-xs text-red-400 mt-1.5 hidden"></p>
+      </div>
+
+      <!-- Quick-fill examples -->
+      <div>
+        <p class="text-xs text-gray-600 mb-2">Quick fill:</p>
+        <div class="flex flex-wrap gap-2">
+          <button class="hex-example px-2.5 py-1 rounded-md bg-gray-800 hover:bg-gray-700 border border-gray-700
+                         text-xs text-gray-300 font-mono transition-colors disabled:opacity-40"
+                  data-hex="BC 01 2C 01 0A 0A" disabled>Blue preset</button>
+          <button class="hex-example px-2.5 py-1 rounded-md bg-gray-800 hover:bg-gray-700 border border-gray-700
+                         text-xs text-gray-300 font-mono transition-colors disabled:opacity-40"
+                  data-hex="BC 01 2C 00 0A 0A" disabled>Red preset</button>
+          <button class="hex-example px-2.5 py-1 rounded-md bg-gray-800 hover:bg-gray-700 border border-gray-700
+                         text-xs text-gray-300 font-mono transition-colors disabled:opacity-40"
+                  data-hex="BC 00 01 04 00 00" disabled>OFF</button>
+          <button class="hex-example px-2.5 py-1 rounded-md bg-gray-800 hover:bg-gray-700 border border-gray-700
+                         text-xs text-gray-300 font-mono transition-colors disabled:opacity-40"
+                  data-hex="F1 01 00 64 05 01 00 32 00 0A" disabled>F1 breathing</button>
+        </div>
+      </div>
+
+      <button id="hex-send" disabled
+        class="w-full py-3 rounded-xl bg-teal-700 hover:bg-teal-600 active:bg-teal-800
+               text-white text-sm font-semibold tracking-wide transition-colors
+               disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-teal-400">
+        Send Raw Command
+      </button>
+    </div>
+  </section>
+
+  <!-- Pattern Builder -->
+  <section class="bg-slate-800/60 rounded-2xl border border-slate-700 overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-4 bg-slate-700/40 border-b border-slate-600">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+          <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        </div>
+        <div>
+          <h2 class="font-semibold text-white text-sm">Pattern Builder</h2>
+          <p class="text-xs text-slate-400">Build and play multi-step lighting sequences</p>
+        </div>
+      </div>
+    </div>
+    <div class="p-5 flex flex-col gap-4">
+      <!-- Column headers -->
+      <div class="flex items-center gap-2 px-3 text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <span class="w-5 shrink-0 text-right whitespace-nowrap">#</span>
+        <span class="flex-1 min-w-0 whitespace-nowrap">Color</span>
+        <span class="w-20 shrink-0 whitespace-nowrap">Freq (Hz)</span>
+        <span class="w-16 shrink-0 whitespace-nowrap">Dur (s)</span>
+        <span class="w-20 shrink-0 whitespace-nowrap">Bright %</span>
+        <span class="w-6 shrink-0"></span>
+      </div>
+      <!-- Pattern rows -->
+      <div id="pattern-rows" class="flex flex-col gap-2"></div>
+      <div id="pattern-empty" class="text-center text-slate-500 text-sm py-6 border border-dashed border-slate-600 rounded-xl">No patterns yet. Click "Add Row" to begin.</div>
+
+      <!-- Add row button -->
+      <button id="pattern-add" disabled onclick="addPattern()"
+        class="w-full py-2 rounded-xl border border-dashed border-indigo-500/50 text-indigo-400 text-sm hover:bg-indigo-500/10 transition disabled:opacity-40 disabled:cursor-not-allowed">
+        + Add Row
+      </button>
+
+      <!-- Play / Stop controls -->
+      <div class="flex gap-3">
+        <button id="seq-play" disabled onclick="playSequence()"
+          class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed">
+          ▶ Play
+        </button>
+        <button id="seq-stop" disabled onclick="stopSequence()"
+          class="flex-1 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed">
+          ■ Stop
+        </button>
+      </div>
+
+      <!-- Progress -->
+      <div id="seq-progress-row" class="hidden flex flex-col gap-1">
+        <div class="flex justify-between text-xs text-slate-400">
+          <span id="seq-progress-label">Pattern 0 of 0</span>
+          <span id="seq-brightness-label" class="text-yellow-400"></span>
+        </div>
+        <div class="w-full bg-slate-700 rounded-full h-2">
+          <div id="seq-progress-bar" class="bg-indigo-500 h-2 rounded-full transition-all" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── BLE NOT SUPPORTED WARNING ── -->
+  <div id="no-ble-warning" hidden
+    class="bg-amber-900/30 border border-amber-700/50 rounded-xl px-5 py-4 text-sm text-amber-300 flex items-start gap-3">
+    <svg class="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+    </svg>
+    <span>Web Bluetooth is not supported in this browser. Please use <strong class="text-amber-200">Chrome</strong> or <strong class="text-amber-200">Edge</strong> on desktop.</span>
+  </div>
+
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════
+     FOOTER
+═══════════════════════════════════════════════════════════ -->
+<footer class="border-t border-gray-800/60 mt-8">
+  <div class="max-w-5xl mx-auto px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-600">
+    <span class="flex items-center gap-1.5">
+      <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
+      </svg>
+      Synthia Controller
+    </span>
+    <span class="flex items-center gap-1.5">
+      <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke-width="2"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01"/>
+      </svg>
+      Requires <strong class="text-gray-500 font-semibold">Chrome</strong> or <strong class="text-gray-500 font-semibold">Edge</strong> on desktop for Web Bluetooth support
+    </span>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCRIPT
+═══════════════════════════════════════════════════════════ -->
+<script>
+  'use strict';
+
+  // ── BLE CONSTANTS ──────────────────────────────────────────
+  const NORDIC_UART_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+  const TX_WRITE_CHAR       = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+  const RX_NOTIFY_CHAR      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+  // ── COLOR MAP ──────────────────────────────────────────────
+  const COLOR = { RED: 0x00, BLUE: 0x01, WHITE: 0x02, GREEN: 0x03, OFF: 0x04 };
+  const FREQ  = { STEADY: 0x00, HZ10: 0x0A };
+
+  // ── PRESETS ────────────────────────────────────────────────
+  const PRESETS = {
+    blue:  { duration: 300, color: COLOR.BLUE,  freq: FREQ.HZ10,   bright: 10 },
+    red:   { duration: 300, color: COLOR.RED,   freq: FREQ.HZ10,   bright: 10 },
+    white: { duration: 300, color: COLOR.WHITE, freq: FREQ.HZ10,   bright: 10 },
+    off:   { duration: 1,   color: COLOR.OFF,   freq: FREQ.STEADY, bright: 0  },
+  };
+
+  // ── STATE ──────────────────────────────────────────────────
+  let bleDevice      = null;
+  let writeChar      = null;
+  let activePreset   = null;     // key from PRESETS
+
+  // Brightness state
+  let lastBtn1       = 0;        // latest raw Button 1 count from device
+  let lastBtn2       = 0;        // latest raw Button 2 count from device
+  let baseBtn1       = 0;        // baseline Button 1 count (reset on new command / first notify)
+  let baseBtn2       = 0;        // baseline Button 2 count (reset on new command / first notify)
+  let commandedBright = 10;      // brightness % from last 0xBC command
+  let totalBrightness = 10;      // global brightness (commandedBright + adjustment), clamped 0-100
+  let hasReceivedFirstNotify = false;
+  let lastActiveCmd  = null;     // last 0xBC command sent, for adaptive re-send
+
+  // Feature 1: Command Timer
+  let timerInterval   = null;
+  let timerStartTime  = null;
+  let timerDurationSec = null;
+  let timerExpired    = false;
+
+  // Feature 3 & 4: Pattern Builder
+  let patterns         = [];
+  let sequencePlaying  = false;
+  let sequenceIndex    = 0;
+  let sequenceTimeout  = null;
+  let originalBrightness = [];   // snapshot of each pattern's brightness at sequence start
+  let seqBrightnessOffset = 0;   // cumulative offset from button presses during sequence
+
+  // ── DOM REFS ───────────────────────────────────────────────
+  const btnConnect        = document.getElementById('btn-connect');
+  const btnConnectLabel   = document.getElementById('btn-connect-label');
+  const btnDisconnect     = document.getElementById('btn-disconnect');
+  const statusDot         = document.getElementById('status-dot');
+  const statusLabel       = document.getElementById('status-label');
+  const dashboard         = document.getElementById('dashboard');
+  const disconnectedState = document.getElementById('disconnected-state');
+  const batteryVal        = document.getElementById('battery-val');
+  const brightnessVal     = document.getElementById('brightness-val');
+  const brightnessBar     = document.getElementById('brightness-bar');
+  const btn1Val           = document.getElementById('btn1-val');
+  const btn2Val           = document.getElementById('btn2-val');
+  const presetBtns        = document.querySelectorAll('.preset-btn');
+  const noBlWarning       = document.getElementById('no-ble-warning');
+
+  // BC panel
+  const bcDuration  = document.getElementById('bc-duration');
+  const bcDurLbl    = document.getElementById('bc-duration-label');
+  const bcColor     = document.getElementById('bc-color');
+  const bcFrequency = document.getElementById('bc-frequency');
+  const bcFreqLbl   = document.getElementById('bc-frequency-label');
+  const bcBrightness= document.getElementById('bc-brightness');
+  const bcBrightLbl = document.getElementById('bc-brightness-label');
+  const bcPreview   = document.getElementById('bc-preview');
+  const bcSend      = document.getElementById('bc-send');
+
+  // F1 panel
+  const f1Color    = document.getElementById('f1-color');
+  const f1Start    = document.getElementById('f1-start');
+  const f1StartLbl = document.getElementById('f1-start-label');
+  const f1End      = document.getElementById('f1-end');
+  const f1EndLbl   = document.getElementById('f1-end-label');
+  const f1Step     = document.getElementById('f1-step');
+  const f1StepLbl  = document.getElementById('f1-step-label');
+  const f1Mode     = document.getElementById('f1-mode');
+  const f1Interval = document.getElementById('f1-interval');
+  const f1IntLbl   = document.getElementById('f1-interval-label');
+  const f1Cycles   = document.getElementById('f1-cycles');
+  const f1CycLbl   = document.getElementById('f1-cycles-label');
+  const f1Preview  = document.getElementById('f1-preview');
+  const f1Send     = document.getElementById('f1-send');
+
+  // Custom hex panel
+  const hexInput     = document.getElementById('hex-input');
+  const hexClear     = document.getElementById('hex-clear');
+  const hexParsed    = document.getElementById('hex-parsed');
+  const hexByteCount = document.getElementById('hex-byte-count');
+  const hexError     = document.getElementById('hex-error');
+  const hexSend      = document.getElementById('hex-send');
+  const hexExamples  = document.querySelectorAll('.hex-example');
+
+  // ── TOAST ──────────────────────────────────────────────────
+  function toast(message, type = 'info') {
+    const colors = {
+      info:    'bg-gray-800 border-gray-700 text-gray-200',
+      success: 'bg-green-900/80 border-green-700 text-green-200',
+      error:   'bg-red-900/80 border-red-700 text-red-200',
+      warning: 'bg-amber-900/80 border-amber-700 text-amber-200',
+    };
+    const icons = {
+      info:    '💡',
+      success: '✅',
+      error:   '❌',
+      warning: '⚠️',
+    };
+
+    const el = document.createElement('div');
+    el.className = `pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl border
+                    text-sm shadow-xl toast-enter ${colors[type]}`;
+    el.innerHTML = `<span class="mt-0.5">${icons[type]}</span><span>${message}</span>`;
+
+    const container = document.getElementById('toast-container');
+    container.appendChild(el);
+
+    setTimeout(() => {
+      el.classList.remove('toast-enter');
+      el.classList.add('toast-exit');
+      el.addEventListener('animationend', () => el.remove());
+    }, 3500);
+  }
+
+  // ── COMMAND TIMER ──────────────────────────────────────────
+  function formatMMSS(sec) {
+    const m = Math.floor(Math.abs(sec) / 60).toString().padStart(2, '0');
+    const s = (Math.abs(sec) % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+  function startTimer(durationSec) {
+    stopTimer();
+    timerExpired = false;
+    timerDurationSec = durationSec; // null = count up, number = countdown
+    timerStartTime = Date.now();
+    const el = document.getElementById('cmd-timer-value');
+    if (el) el.classList.remove('timer-expired');
+    timerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
+      const el = document.getElementById('cmd-timer-value');
+      if (!el) return;
+      if (timerDurationSec !== null) {
+        const remaining = timerDurationSec - elapsed;
+        if (remaining <= 0) {
+          el.textContent = 'Expired';
+          el.classList.add('timer-expired');
+          timerExpired = true;
+          stopTimer();
+        } else {
+          el.textContent = formatMMSS(remaining);
+        }
+      } else {
+        el.textContent = formatMMSS(elapsed);
+      }
+    }, 1000);
+  }
+  function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  // ── COMMAND BUILDERS ───────────────────────────────────────
+  function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+  function buildBC(durationSec, colorCode, frequency, brightPct) {
+    const dur  = clamp(Math.round(durationSec), 0, 65535);
+    const high = Math.floor(dur / 256);
+    const low  = dur % 256;
+    const br   = clamp(Math.round(brightPct), 0, 100);
+    return new Uint8Array([0xBC, high, low, colorCode, frequency, br]);
+  }
+
+  function buildF1(colorCode, startBright, endBright, step, mode, intervalMs, cycles) {
+    const iHigh = Math.floor(clamp(intervalMs, 0, 65535) / 256);
+    const iLow  = clamp(intervalMs, 0, 65535) % 256;
+    const cHigh = Math.floor(clamp(cycles, 0, 65535) / 256);
+    const cLow  = clamp(cycles, 0, 65535) % 256;
+    return new Uint8Array([
+      0xF1,
+      colorCode,
+      clamp(startBright, 0, 100),
+      clamp(endBright,   0, 100),
+      clamp(step, 1, 100),
+      mode,
+      iHigh, iLow,
+      cHigh, cLow,
+    ]);
+  }
+
+  function bytesToHex(arr) {
+    return Array.from(arr).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+  }
+
+  // ── BRIGHTNESS UI HELPERS ─────────────────────────────────
+  function updateBrightnessDisplay() {
+    brightnessVal.textContent = `${totalBrightness}%`;
+    brightnessBar.style.width = `${totalBrightness}%`;
+  }
+
+  function recalcBrightness() {
+    const adjustment = ((lastBtn2 - baseBtn2) - (lastBtn1 - baseBtn1)) * 5;
+    totalBrightness = clamp(commandedBright + adjustment, 0, 100);
+    updateBrightnessDisplay();
+  }
+
+  // ── SEND COMMAND ───────────────────────────────────────────
+  async function sendCommand(cmd) {
+    if (!writeChar) { toast('Not connected', 'error'); return false; }
+    if (cmd[0] === 0xBC) {
+      startTimer(cmd[1] * 256 + cmd[2]);
+    } else {
+      startTimer(null);
+    }
+    try {
+      await writeChar.writeValueWithoutResponse(cmd);
+      // B-12 fix: update commandedBright only after successful BLE write
+      if (cmd[0] === 0xBC) {
+        commandedBright = cmd[5];
+        totalBrightness = cmd[5];
+        // Reset baselines so future button deltas start from zero
+        baseBtn1 = lastBtn1;
+        baseBtn2 = lastBtn2;
+        lastActiveCmd = new Uint8Array(cmd);
+        updateBrightnessDisplay();
+      }
+      return true;
+    } catch (err) {
+      toast(`Write failed: ${err.message}`, 'error');
+      return false;
+    }
+  }
+
+  // ── CONNECTION ─────────────────────────────────────────────
+  function setConnectScanning(scanning) {
+    btnConnect.disabled = scanning;
+    if (scanning) {
+      btnConnectLabel.innerHTML = '<span class="btn-spinner"></span>Scanning…';
+    } else {
+      btnConnectLabel.textContent = 'Connect';
+    }
+  }
+
+  async function connectDevice() {
+    if (!navigator.bluetooth) {
+      noBlWarning.hidden = false;
+      toast('Web Bluetooth not supported', 'error');
+      return;
+    }
+
+    setConnectScanning(true);
+    try {
+      toast('Scanning for device…', 'info');
+      bleDevice = await navigator.bluetooth.requestDevice({
+        filters: [{ name: 'Synthia' }, { name: 'VS-Shift' }],
+        optionalServices: [NORDIC_UART_SERVICE],
+      });
+
+      bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+      const server  = await bleDevice.gatt.connect();
+      const service = await server.getPrimaryService(NORDIC_UART_SERVICE);
+      writeChar     = await service.getCharacteristic(TX_WRITE_CHAR);
+
+      // Start notifications
+      const notifChar = await service.getCharacteristic(RX_NOTIFY_CHAR);
+      await notifChar.startNotifications();
+      notifChar.addEventListener('characteristicvaluechanged', onNotify);
+
+      setConnected(true);
+      toast(`Connected to ${bleDevice.name}`, 'success');
+    } catch (err) {
+      if (err.name !== 'NotFoundError') {
+        toast(`Connection failed: ${err.message}`, 'error');
+      }
+      bleDevice = null;
+      writeChar = null;
+    } finally {
+      setConnectScanning(false);
+    }
+  }
+
+  function disconnectDevice() {
+    if (bleDevice && bleDevice.gatt.connected) {
+      bleDevice.gatt.disconnect();
+    }
+  }
+
+  function onDisconnected() {
+    writeChar = null;
+    setConnected(false);
+    toast('Device disconnected', 'warning');
+  }
+
+  // ── NOTIFY HANDLER ─────────────────────────────────────────
+  function onNotify(event) {
+    const data = event.target.value;
+    if (data.byteLength < 4) return;
+
+    const header = data.getUint8(0);
+    if (header !== 0xCC) return;
+
+    const battery  = data.getUint8(1);
+    const btn1     = data.getUint8(2);
+    const btn2     = data.getUint8(3);
+    const battPct  = Math.round((battery / 0x64) * 100);
+
+    // Update dashboard
+    batteryVal.textContent = `${battPct}%`;
+    btn1Val.textContent    = btn1;
+    btn2Val.textContent    = btn2;
+
+    // Battery color
+    const battColor = battPct > 50 ? 'text-green-400' : battPct > 20 ? 'text-yellow-400' : 'text-red-400';
+    document.getElementById('battery-icon').className = `w-5 h-5 ${battColor}`;
+
+    // ── Brightness calculation from button counts ──
+    if (!hasReceivedFirstNotify) {
+      // First packet: snapshot baselines, no brightness change yet
+      lastBtn1 = btn1;
+      lastBtn2 = btn2;
+      baseBtn1 = btn1;
+      baseBtn2 = btn2;
+      hasReceivedFirstNotify = true;
+      return;
+    }
+
+    // Track raw counts and recalculate brightness from baseline
+    const prevTotal = totalBrightness;
+    lastBtn1 = btn1;
+    lastBtn2 = btn2;
+    recalcBrightness();
+
+    // Update sequence brightness label if playing
+    if (sequencePlaying) {
+      const lbl = document.getElementById('seq-brightness-label');
+      if (lbl) lbl.textContent = `Brightness: ${totalBrightness}%`;
+    }
+
+    // Adaptive re-send: if buttons changed brightness, re-send active command
+    if (totalBrightness !== prevTotal) {
+      if (sequencePlaying) {
+        // Compute relative offset from button delta since sequence start
+        seqBrightnessOffset = ((lastBtn2 - baseBtn2) - (lastBtn1 - baseBtn1)) * 5;
+        // Apply offset relative to each pattern's original brightness
+        patterns.forEach((p, i) => {
+          p.brightness = clamp(originalBrightness[i] + seqBrightnessOffset, 0, 100);
+        });
+        // Update UI inputs per pattern
+        document.querySelectorAll('#pattern-rows .row-bright').forEach((input, i) => {
+          input.value = patterns[i].brightness;
+        });
+        // Re-send current pattern with updated brightness
+        const p = patterns[sequenceIndex];
+        if (p) {
+          const cmd = buildBC(p.duration, p.color, p.freq, totalBrightness);
+          writeChar.writeValueWithoutResponse(cmd).catch(() => {});
+        }
+      } else if (lastActiveCmd && writeChar) {
+        const cmd = new Uint8Array(lastActiveCmd);
+        cmd[5] = totalBrightness;
+        writeChar.writeValueWithoutResponse(cmd).catch(() => {});
+      }
+    }
+  }
+
+  // ── UI STATE ───────────────────────────────────────────────
+  function setConnected(connected) {
+    btnConnect.hidden    =  connected;
+    btnDisconnect.hidden = !connected;
+    document.getElementById('global-stop').hidden = !connected;
+    statusDot.className  = `w-2.5 h-2.5 rounded-full transition-colors duration-300 ${
+      connected ? 'bg-green-400 shadow-[0_0_6px_2px_rgba(74,222,128,0.5)]' : 'bg-gray-600'
+    }`;
+    statusLabel.textContent = connected ? `Connected · ${bleDevice?.name ?? ''}` : 'Disconnected';
+    dashboard.classList.toggle('hidden', !connected);
+    disconnectedState.classList.toggle('hidden', connected);
+
+    // Enable/disable all controls
+    const controls = [
+      ...presetBtns,
+      bcDuration, bcColor, bcFrequency, bcBrightness, bcSend,
+      f1Color, f1Start, f1End, f1Step, f1Mode, f1Interval, f1Cycles, f1Send,
+      hexInput, hexClear, hexSend, ...hexExamples,
+      document.getElementById('pattern-add'),
+      document.getElementById('seq-play'),
+    ];
+    controls.forEach(el => { if (el) el.disabled = !connected; });
+
+    if (!connected) {
+      clearActivePreset();
+      batteryVal.textContent    = '—';
+      brightnessVal.textContent = '—';
+      brightnessBar.style.width = '0%';
+      btn1Val.textContent       = '—';
+      btn2Val.textContent       = '—';
+      // Reset brightness state
+      lastBtn1 = 0;
+      lastBtn2 = 0;
+      baseBtn1 = 0;
+      baseBtn2 = 0;
+      commandedBright = 10;
+      totalBrightness = 10;
+      hasReceivedFirstNotify = false;
+      lastActiveCmd = null;
+      originalBrightness = [];
+      seqBrightnessOffset = 0;
+      // Feature 1: stop timer on disconnect
+      stopTimer();
+      const timerEl = document.getElementById('cmd-timer-value');
+      if (timerEl) { timerEl.textContent = '--:--'; timerEl.classList.remove('timer-expired'); }
+      // Feature 3: stop sequence on disconnect
+      stopSequence();
+    }
+  }
+
+  // ── PRESET LOGIC ───────────────────────────────────────────
+  const PRESET_ACTIVE_CLASSES = {
+    blue:  'preset-active-blue',
+    red:   'preset-active-red',
+    white: 'preset-active-white',
+    off:   'preset-active-off',
+  };
+  const ALL_ACTIVE_CLASSES = Object.values(PRESET_ACTIVE_CLASSES);
+
+  function clearActivePreset() {
+    activePreset = null;
+    presetBtns.forEach(btn => btn.classList.remove(...ALL_ACTIVE_CLASSES));
+  }
+
+  presetBtns.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const key = btn.dataset.preset;
+      const p   = PRESETS[key];
+      if (!p) return;
+
+      const cmd = buildBC(p.duration, p.color, p.freq, p.bright);
+      const ok  = await sendCommand(cmd);
+      if (!ok) return;
+
+      clearActivePreset();
+      activePreset = key;
+      if (PRESET_ACTIVE_CLASSES[key]) {
+        btn.classList.add(PRESET_ACTIVE_CLASSES[key]);
+      }
+    });
+  });
+
+  // ── BC PANEL LOGIC ─────────────────────────────────────────
+  function updateBcPreview() {
+    const dur   = clamp(parseInt(bcDuration.value) || 0, 0, 65535);
+    const color = parseInt(bcColor.value);
+    const freq  = parseInt(bcFrequency.value);
+    const br    = clamp(parseInt(bcBrightness.value) || 0, 0, 100);
+    const cmd   = buildBC(dur, color, freq, br);
+    bcPreview.textContent = bytesToHex(cmd);
+    bcDurLbl.textContent = `${bcDuration.value}s`;
+    bcFreqLbl.textContent = freq === 0 ? 'Steady' : `${freq} Hz`;
+    bcBrightLbl.textContent = `${bcBrightness.value}%`;
+  }
+
+  [bcDuration, bcColor, bcFrequency, bcBrightness].forEach(el => {
+    el.addEventListener('input', updateBcPreview);
+  });
+
+  bcSend.addEventListener('click', async () => {
+    const dur   = clamp(parseInt(bcDuration.value) || 0, 0, 65535);
+    const color = parseInt(bcColor.value);
+    const freq  = parseInt(bcFrequency.value);
+    const br    = clamp(parseInt(bcBrightness.value) || 0, 0, 100);
+    const cmd   = buildBC(dur, color, freq, br);
+
+    const ok = await sendCommand(cmd);
+    if (ok) {
+      clearActivePreset();
+      toast('BC command sent', 'success');
+    }
+  });
+
+  // ── F1 PANEL LOGIC ─────────────────────────────────────────
+  function updateF1Preview() {
+    const color    = parseInt(f1Color.value);
+    const startB   = clamp(parseInt(f1Start.value) || 0, 0, 100);
+    const endB     = clamp(parseInt(f1End.value) || 0, 0, 100);
+    const step     = clamp(parseInt(f1Step.value) || 1, 1, 100);
+    const mode     = parseInt(f1Mode.value);
+    const interval = clamp(parseInt(f1Interval.value) || 0, 0, 65535);
+    const cycles   = clamp(parseInt(f1Cycles.value) || 0, 0, 65535);
+    const cmd      = buildF1(color, startB, endB, step, mode, interval, cycles);
+    f1Preview.textContent = bytesToHex(cmd);
+    f1StartLbl.textContent = `${f1Start.value}%`;
+    f1EndLbl.textContent   = `${f1End.value}%`;
+    f1StepLbl.textContent  = `${f1Step.value}%`;
+    f1IntLbl.textContent   = `${f1Interval.value}ms`;
+    f1CycLbl.textContent   = f1Cycles.value;
+  }
+
+  [f1Color, f1Start, f1End, f1Step, f1Mode, f1Interval, f1Cycles].forEach(el => {
+    el.addEventListener('input', updateF1Preview);
+  });
+
+  f1Send.addEventListener('click', async () => {
+    const color    = parseInt(f1Color.value);
+    const startB   = clamp(parseInt(f1Start.value) || 0, 0, 100);
+    const endB     = clamp(parseInt(f1End.value) || 0, 0, 100);
+    const step     = clamp(parseInt(f1Step.value) || 1, 1, 100);
+    const mode     = parseInt(f1Mode.value);
+    const interval = clamp(parseInt(f1Interval.value) || 0, 0, 65535);
+    const cycles   = clamp(parseInt(f1Cycles.value) || 0, 0, 65535);
+    const cmd      = buildF1(color, startB, endB, step, mode, interval, cycles);
+
+    const ok = await sendCommand(cmd);
+    if (ok) {
+      clearActivePreset();
+      toast('F1 breathing command sent', 'success');
+    }
+  });
+
+  // ── CUSTOM HEX PANEL LOGIC ─────────────────────────────────
+  function parseHexInput(raw) {
+    // Accept space, comma, or no delimiter between hex pairs
+    const tokens = raw.trim().replace(/,/g, ' ').split(/\s+/).filter(Boolean);
+    const bytes  = [];
+    for (const token of tokens) {
+      // Strip optional 0x prefix
+      const clean = token.replace(/^0x/i, '');
+      if (!/^[0-9a-fA-F]{1,2}$/.test(clean)) {
+        return { ok: false, error: `Invalid token: "${token}"` };
+      }
+      bytes.push(parseInt(clean, 16));
+    }
+    if (bytes.length === 0) return { ok: false, error: 'Enter at least one byte' };
+    if (bytes.length > 64)  return { ok: false, error: 'Max 64 bytes allowed' };
+    return { ok: true, bytes };
+  }
+
+  function updateHexPreview() {
+    const raw = hexInput.value;
+    if (!raw.trim()) {
+      hexParsed.textContent    = '—';
+      hexByteCount.textContent = '0 bytes';
+      hexError.hidden          = true;
+      hexError.textContent     = '';
+      hexSend.disabled         = true;
+      return;
+    }
+
+    const result = parseHexInput(raw);
+    if (!result.ok) {
+      hexParsed.textContent    = '—';
+      hexByteCount.textContent = '0 bytes';
+      hexError.textContent     = result.error;
+      hexError.hidden          = false;
+      hexSend.disabled         = true;
+    } else {
+      hexParsed.textContent    = result.bytes.map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+      hexByteCount.textContent = `${result.bytes.length} byte${result.bytes.length !== 1 ? 's' : ''}`;
+      hexError.hidden          = true;
+      hexError.textContent     = '';
+      // Only enable send if connected
+      hexSend.disabled         = !writeChar;
+    }
+  }
+
+  hexInput.addEventListener('input', updateHexPreview);
+
+  hexClear.addEventListener('click', () => {
+    hexInput.value           = '';
+    hexParsed.textContent    = '—';
+    hexByteCount.textContent = '0 bytes';
+    hexError.hidden          = true;
+    hexSend.disabled         = true;
+    hexInput.focus();
+  });
+
+  hexExamples.forEach(btn => {
+    btn.addEventListener('click', () => {
+      hexInput.value = btn.dataset.hex;
+      updateHexPreview();
+      hexInput.focus();
+    });
+  });
+
+  hexSend.addEventListener('click', async () => {
+    const result = parseHexInput(hexInput.value);
+    if (!result.ok) { toast(result.error, 'error'); return; }
+    const cmd = new Uint8Array(result.bytes);
+    const ok  = await sendCommand(cmd);
+    if (ok) {
+      clearActivePreset();
+      toast(`Sent ${result.bytes.length} bytes: ${hexParsed.textContent}`, 'success');
+    }
+  });
+
+  // ── PATTERN BUILDER ────────────────────────────────────────
+  function addPattern() {
+    const i = patterns.length;
+    patterns.push({ color: 0x01, freq: 0x0A, duration: 30, brightness: 50 });
+    renderPatternRow(i);
+    reindexPatternRows();
+    document.getElementById('pattern-empty').classList.add('hidden');
+  }
+
+  function renderPatternRow(i) {
+    const container = document.getElementById('pattern-rows');
+    const row = document.createElement('div');
+    row.dataset.index = i;
+    row.className = 'flex items-center gap-2 bg-slate-700/50 border border-slate-600 rounded-xl p-3 text-sm';
+    row.innerHTML = `
+      <span class="row-num text-slate-400 font-mono w-5 shrink-0 text-right">${i+1}</span>
+      <select class="row-color flex-1 min-w-0 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-white text-xs">
+        <option value="1" selected>Blue</option>
+        <option value="0">Red</option>
+        <option value="2">White</option>
+        <option value="3">Green</option>
+        <option value="4">Off</option>
+      </select>
+      <input type="number" class="row-freq w-20 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-white text-xs" placeholder="Hz" value="10" min="0" max="255" title="Frequency (0=Steady, 10=10Hz)" />
+      <input type="number" class="row-dur w-16 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-white text-xs" placeholder="Dur(s)" value="30" min="1" max="65535" />
+      <input type="number" class="row-bright w-20 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-white text-xs" placeholder="%" value="50" min="0" max="100" />
+      <button class="w-6 shrink-0 text-slate-500 hover:text-red-400 transition text-lg leading-none" onclick="deletePatternRow(this)">×</button>
+    `;
+    // Sync on change
+    row.querySelectorAll('select, input').forEach(el => {
+      el.addEventListener('change', () => syncPatternFromRow(row));
+    });
+    container.appendChild(row);
+  }
+
+  function syncPatternFromRow(row) {
+    const i = parseInt(row.dataset.index);
+    patterns[i] = {
+      color: parseInt(row.querySelector('.row-color').value),
+      freq: parseInt(row.querySelector('.row-freq').value),
+      duration: parseInt(row.querySelector('.row-dur').value) || 1,
+      brightness: parseInt(row.querySelector('.row-bright').value) || 0,
+    };
+  }
+
+  function deletePatternRow(btn) {
+    const row = btn.closest('[data-index]');
+    const i = parseInt(row.dataset.index);
+    patterns.splice(i, 1);
+    row.remove();
+    reindexPatternRows();
+    if (patterns.length === 0) {
+      document.getElementById('pattern-empty').classList.remove('hidden');
+    }
+  }
+
+  function reindexPatternRows() {
+    const rows = document.querySelectorAll('#pattern-rows [data-index]');
+    rows.forEach((row, i) => {
+      row.dataset.index = i;
+      row.querySelector('.row-num').textContent = i + 1;
+    });
+  }
+
+  function setPatternRowsDisabled(dis) {
+    document.querySelectorAll('#pattern-rows select, #pattern-rows input, #pattern-rows button').forEach(el => {
+      el.disabled = dis;
+    });
+  }
+
+  function playSequence() {
+    if (patterns.length === 0) return;
+    document.querySelectorAll('#pattern-rows [data-index]').forEach(row => syncPatternFromRow(row));
+    originalBrightness = patterns.map(p => p.brightness);
+    seqBrightnessOffset = 0;
+    baseBtn1 = lastBtn1;
+    baseBtn2 = lastBtn2;
+    sequencePlaying = true;
+    sequenceIndex = 0;
+    document.getElementById('seq-progress-row').classList.remove('hidden');
+    document.getElementById('seq-play').disabled = true;
+    document.getElementById('seq-stop').disabled = false;
+    setPatternRowsDisabled(true);
+    document.getElementById('pattern-add').disabled = true;
+    sendCurrentPattern();
+  }
+
+  async function sendCurrentPattern() {
+    if (!sequencePlaying || sequenceIndex >= patterns.length) { finishSequence(); return; }
+    // Highlight active row
+    document.querySelectorAll('#pattern-rows [data-index]').forEach(row => {
+      row.classList.remove('pattern-row-active');
+    });
+    const activeRow = document.querySelector(`#pattern-rows [data-index="${sequenceIndex}"]`);
+    if (activeRow) activeRow.classList.add('pattern-row-active');
+    updateSeqProgress();
+    const p = patterns[sequenceIndex];
+    // Apply relative offset from original brightness for this pattern
+    const effectiveBright = clamp(originalBrightness[sequenceIndex] + seqBrightnessOffset, 0, 100);
+    const cmd = buildBC(p.duration, p.color, p.freq, effectiveBright);
+    await sendCommand(cmd);
+    // Show effective brightness during sequence
+    const lbl = document.getElementById('seq-brightness-label');
+    if (lbl) lbl.textContent = `Brightness: ${totalBrightness}%`;
+    sequenceTimeout = setTimeout(() => nextPattern(), p.duration * 1000);
+  }
+
+  function nextPattern() {
+    sequenceIndex++;
+    if (sequenceIndex >= patterns.length) { finishSequence(); return; }
+    sendCurrentPattern();
+  }
+
+  function updateSeqProgress() {
+    const label = document.getElementById('seq-progress-label');
+    const bar = document.getElementById('seq-progress-bar');
+    if (label) label.textContent = `Pattern ${sequenceIndex + 1} of ${patterns.length}`;
+    if (bar) bar.style.width = `${((sequenceIndex) / patterns.length) * 100}%`;
+  }
+
+  function finishSequence() {
+    sequencePlaying = false;
+    seqBrightnessOffset = 0;
+    baseBtn1 = lastBtn1;
+    baseBtn2 = lastBtn2;
+    if (sequenceTimeout) { clearTimeout(sequenceTimeout); sequenceTimeout = null; }
+    document.querySelectorAll('#pattern-rows [data-index]').forEach(row => row.classList.remove('pattern-row-active'));
+    const bar = document.getElementById('seq-progress-bar');
+    if (bar) bar.style.width = '100%';
+    const label = document.getElementById('seq-progress-label');
+    if (label) label.textContent = `Done — ${patterns.length} of ${patterns.length}`;
+    document.getElementById('seq-play').disabled = false;
+    document.getElementById('seq-stop').disabled = true;
+    setPatternRowsDisabled(false);
+    document.getElementById('pattern-add').disabled = false;
+  }
+
+  function stopSequence() {
+    sequencePlaying = false;
+    seqBrightnessOffset = 0;
+    baseBtn1 = lastBtn1;
+    baseBtn2 = lastBtn2;
+    if (sequenceTimeout) { clearTimeout(sequenceTimeout); sequenceTimeout = null; }
+    // Send OFF command to device
+    if (writeChar) {
+      const offCmd = buildBC(0, 0x04, 0x00, 0);
+      writeChar.writeValueWithoutResponse(offCmd).catch(() => {});
+    }
+    document.querySelectorAll('#pattern-rows [data-index]').forEach(row => row.classList.remove('pattern-row-active'));
+    const seqProgressRow = document.getElementById('seq-progress-row');
+    if (seqProgressRow) seqProgressRow.classList.add('hidden');
+    const seqPlay = document.getElementById('seq-play');
+    const seqStop = document.getElementById('seq-stop');
+    const patternAdd = document.getElementById('pattern-add');
+    if (seqPlay) seqPlay.disabled = false;
+    if (seqStop) seqStop.disabled = true;
+    setPatternRowsDisabled(false);
+    if (patternAdd) patternAdd.disabled = false;
+  }
+
+  // ── GLOBAL STOP ────────────────────────────────────────────
+  function globalStop() {
+    stopSequence();
+    if (writeChar) {
+      const offCmd = buildBC(0, 0x04, 0x00, 0);
+      writeChar.writeValueWithoutResponse(offCmd).catch(() => {});
+    }
+    toast('Stopped — LED off', 'info');
+  }
+
+  // ── EVENT LISTENERS ────────────────────────────────────────
+  btnConnect.addEventListener('click', connectDevice);
+  btnDisconnect.addEventListener('click', disconnectDevice);
+
+  // ── INIT ───────────────────────────────────────────────────
+  if (!navigator.bluetooth) {
+    noBlWarning.hidden = false;
+  }
+  updateBcPreview();
+  updateF1Preview();
+</script>
+</body>
+</html>

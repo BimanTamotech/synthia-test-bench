@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Synthia Controller v1</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+    @keyframes slideIn {
+      from { transform: translateX(110%); opacity: 0; }
+      to   { transform: translateX(0);   opacity: 1; }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to   { opacity: 0; }
+    }
+    .toast-enter { animation: slideIn 0.3s ease-out forwards; }
+    .toast-exit  { animation: fadeOut 0.4s ease-in forwards; }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    .btn-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+      width: 100%;
+    }
+    input[type=range]::-webkit-slider-track {
+      background: #334155;
+      height: 6px;
+      border-radius: 3px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #6366f1;
+      margin-top: -6px;
+      cursor: pointer;
+    }
+    input[type=range]:disabled::-webkit-slider-thumb { background: #475569; cursor: not-allowed; }
+    input[type=range]:disabled::-webkit-slider-track { background: #1e293b; }
+
+    .pattern-row-active { border: 1px solid #6366f1 !important; background: rgba(99,102,241,0.1) !important; }
+  </style>
+</head>
+
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans antialiased">
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 w-80 pointer-events-none"></div>
+
+<!-- HEADER -->
+<header class="sticky top-0 z-40 bg-gray-950/90 backdrop-blur border-b border-gray-800 px-6 py-4">
+  <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold leading-none text-white">Synthia Controller</h1>
+        <p class="text-xs text-gray-500 mt-0.5">BLE LED Management — v1</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
+        <div id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-600 transition-colors duration-300"></div>
+        <span id="status-label" class="text-sm text-gray-400">Disconnected</span>
+      </div>
+      <button id="btn-connect"
+        class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700
+               text-white text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400
+               disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5">
+        <span id="btn-connect-label">Connect</span>
+      </button>
+      <button id="btn-disconnect" hidden
+        class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 active:bg-gray-800
+               text-white text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400">
+        Disconnect
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<main class="max-w-5xl mx-auto px-6 py-8 space-y-8">
+
+  <!-- DISCONNECTED STATE -->
+  <section id="disconnected-state" class="flex flex-col items-center justify-center py-16 gap-5 text-center">
+    <div class="w-20 h-20 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-2">
+      <svg class="w-10 h-10 text-indigo-500 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
+      </svg>
+    </div>
+    <div>
+      <h3 class="text-lg font-semibold text-white mb-1">No device connected</h3>
+      <p class="text-sm text-gray-500 max-w-xs leading-relaxed">
+        Press <span class="text-indigo-400 font-medium">Connect</span> to scan for your Synthia LED controller via Bluetooth.
+      </p>
+    </div>
+  </section>
+
+  <!-- LIVE STATUS DASHBOARD -->
+  <section id="dashboard" class="hidden">
+    <h2 class="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 mb-5 flex items-center gap-2">
+      <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400"></span>
+      Live Status
+    </h2>
+
+    <div class="grid grid-cols-3 gap-4 mb-4">
+
+      <!-- Battery -->
+      <div class="bg-gray-900 rounded-2xl p-5 border border-gray-800 ring-1 ring-gray-700/40">
+        <div class="flex items-center gap-2 mb-3">
+          <svg id="battery-icon" class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="1" y="6" width="18" height="12" rx="2" stroke-width="2"/>
+            <path d="M23 13v-2" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Battery</span>
+        </div>
+        <p id="battery-val" class="text-3xl font-bold text-white tabular-nums">—</p>
+      </div>
+
+      <!-- Button 1 (Left): Up / Increase Brightness -->
+      <div class="bg-gray-900 rounded-2xl p-5 border border-gray-800 ring-1 ring-gray-700/40">
+        <div class="flex items-center gap-2 mb-3">
+          <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+          </svg>
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">C_left / Up (Btn1)</span>
+        </div>
+        <p id="btn1-val" class="text-3xl font-bold text-white tabular-nums">—</p>
+      </div>
+
+      <!-- Button 2 (Right): Down / Decrease Brightness -->
+      <div class="bg-gray-900 rounded-2xl p-5 border border-gray-800 ring-1 ring-gray-700/40">
+        <div class="flex items-center gap-2 mb-3">
+          <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
+          </svg>
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">C_right / Down (Btn2)</span>
+        </div>
+        <p id="btn2-val" class="text-3xl font-bold text-white tabular-nums">—</p>
+      </div>
+    </div>
+
+    <!-- Brightness card -->
+    <div class="bg-gray-900 rounded-2xl p-5 border border-gray-800 ring-1 ring-gray-700/40">
+      <div class="flex items-center gap-2 mb-3">
+        <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 3v1m0 16v1m8.485-8.485h-1M4.515 12H3.515m14.142-5.657l-.707.707M7.05 16.95l-.707.707M16.95 16.95l-.707.707M7.05 7.05l-.707.707M12 5a7 7 0 100 14A7 7 0 0012 5z"/>
+        </svg>
+        <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Brightness</span>
+      </div>
+      <p id="brightness-val" class="text-3xl font-bold text-white tabular-nums mb-3">—</p>
+      <div class="h-3 bg-gray-800 rounded-full overflow-hidden">
+        <div id="brightness-bar" class="h-full bg-gradient-to-r from-yellow-500 to-yellow-300 rounded-full transition-all duration-300" style="width:0%"></div>
+      </div>
+      <!-- Brightness calculation detail -->
+      <div id="brightness-detail" class="mt-3 text-xs text-gray-500 font-mono hidden"></div>
+    </div>
+  </section>
+
+  <!-- PATTERN BUILDER -->
+  <section class="bg-slate-800/60 rounded-2xl border border-slate-700 overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-4 bg-slate-700/40 border-b border-slate-600">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+          <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="font-semibold text-white text-sm">Pattern Builder</h2>
+          <p class="text-xs text-slate-400">Build and play multi-step lighting sequences</p>
+        </div>
+      </div>
+    </div>
+    <div class="p-5 flex flex-col gap-4">
+      <!-- Column headers -->
+      <div class="flex items-center gap-2 px-3 text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <span class="w-5 shrink-0 text-right">#</span>
+        <span class="flex-1 min-w-0">Color</span>
+        <span class="w-20 shrink-0">Freq (Hz)</span>
+        <span class="w-16 shrink-0">Dur (s)</span>
+        <span class="w-20 shrink-0">Bright %</span>
+        <span class="w-6 shrink-0"></span>
+      </div>
+      <!-- Pattern rows -->
+      <div id="pattern-rows" class="flex flex-col gap-2"></div>
+      <div id="pattern-empty" class="text-center text-slate-500 text-sm py-6 border border-dashed border-slate-600 rounded-xl">No patterns yet. Click "Add Row" to begin.</div>
+
+      <button id="pattern-add" disabled onclick="addPattern()"
+        class="w-full py-2 rounded-xl border border-dashed border-indigo-500/50 text-indigo-400 text-sm hover:bg-indigo-500/10 transition disabled:opacity-40 disabled:cursor-not-allowed">
+        + Add Row
+      </button>
+
+      <div class="flex gap-3">
+        <button id="seq-play" disabled onclick="playSequence()"
+          class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed">
+          Play
+        </button>
+        <button id="seq-stop" disabled onclick="stopSequence()"
+          class="flex-1 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed">
+          Stop
+        </button>
+      </div>
+
+      <div id="seq-progress-row" class="hidden flex flex-col gap-1">
+        <div class="flex justify-between text-xs text-slate-400">
+          <span id="seq-progress-label">Pattern 0 of 0</span>
+          <span id="seq-brightness-label" class="text-yellow-400"></span>
+        </div>
+        <div class="w-full bg-slate-700 rounded-full h-2">
+          <div id="seq-progress-bar" class="bg-indigo-500 h-2 rounded-full transition-all" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BLE NOT SUPPORTED WARNING -->
+  <div id="no-ble-warning" hidden
+    class="bg-amber-900/30 border border-amber-700/50 rounded-xl px-5 py-4 text-sm text-amber-300 flex items-start gap-3">
+    <svg class="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+    </svg>
+    <span>Web Bluetooth is not supported in this browser. Please use <strong class="text-amber-200">Chrome</strong> or <strong class="text-amber-200">Edge</strong> on desktop.</span>
+  </div>
+
+</main>
+
+<!-- SCRIPT -->
+<script>
+  'use strict';
+
+  // ── BLE CONSTANTS ──────────────────────────────────────────
+  const NORDIC_UART_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+  const TX_WRITE_CHAR       = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+  const RX_NOTIFY_CHAR      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+  // ── COLOR MAP ──────────────────────────────────────────────
+  const COLOR = { RED: 0x00, BLUE: 0x01, WHITE: 0x02, GREEN: 0x03, OFF: 0x04 };
+
+  // ── STATE ──────────────────────────────────────────────────
+  let bleDevice      = null;
+  let writeChar      = null;
+
+  // Brightness state (v5 — differential from cumulative counts)
+  let cLeft          = 0;        // cumulative "Up" button presses (Button1, byte[2])
+  let cRight         = 0;        // cumulative "Down" button presses (Button2, byte[3])
+  let bDefault       = 10;       // B_default: brightness from Pattern Builder config
+  let totalBrightness = 10;      // Brightness_final = clamp(bDefault + ((cLeft - cRight) * 5), 0, 100)
+  let lastActiveCmd  = null;     // last 0xBC command sent, for adaptive re-send
+
+  // Pattern Builder
+  let patterns         = [];
+  let sequencePlaying  = false;
+  let sequenceIndex    = 0;
+  let sequenceTimeout  = null;
+
+  // ── DOM REFS ───────────────────────────────────────────────
+  const btnConnect        = document.getElementById('btn-connect');
+  const btnConnectLabel   = document.getElementById('btn-connect-label');
+  const btnDisconnect     = document.getElementById('btn-disconnect');
+  const statusDot         = document.getElementById('status-dot');
+  const statusLabel       = document.getElementById('status-label');
+  const dashboard         = document.getElementById('dashboard');
+  const disconnectedState = document.getElementById('disconnected-state');
+  const batteryVal        = document.getElementById('battery-val');
+  const brightnessVal     = document.getElementById('brightness-val');
+  const brightnessBar     = document.getElementById('brightness-bar');
+  const brightnessDetail  = document.getElementById('brightness-detail');
+  const btn1Val           = document.getElementById('btn1-val');
+  const btn2Val           = document.getElementById('btn2-val');
+  const noBlWarning       = document.getElementById('no-ble-warning');
+
+  // ── TOAST ──────────────────────────────────────────────────
+  function toast(message, type = 'info') {
+    const colors = {
+      info:    'bg-gray-800 border-gray-700 text-gray-200',
+      success: 'bg-green-900/80 border-green-700 text-green-200',
+      error:   'bg-red-900/80 border-red-700 text-red-200',
+      warning: 'bg-amber-900/80 border-amber-700 text-amber-200',
+    };
+    const el = document.createElement('div');
+    el.className = `pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl border
+                    text-sm shadow-xl toast-enter ${colors[type]}`;
+    el.innerHTML = `<span>${message}</span>`;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(() => {
+      el.classList.remove('toast-enter');
+      el.classList.add('toast-exit');
+      el.addEventListener('animationend', () => el.remove());
+    }, 3500);
+  }
+
+  // ── COMMAND BUILDERS ───────────────────────────────────────
+  function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+  function buildBC(durationSec, colorCode, frequency, brightPct) {
+    const dur  = clamp(Math.round(durationSec), 0, 65535);
+    const high = Math.floor(dur / 256);
+    const low  = dur % 256;
+    const br   = clamp(Math.round(brightPct), 0, 100);
+    return new Uint8Array([0xBC, high, low, colorCode, frequency, br]);
+  }
+
+  function bytesToHex(arr) {
+    return Array.from(arr).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+  }
+
+  // ── BRIGHTNESS LOGIC (v5 — differential) ───────────────────
+  function updateBrightnessDisplay() {
+    brightnessVal.textContent = `${totalBrightness}%`;
+    brightnessBar.style.width = `${totalBrightness}%`;
+  }
+
+  function recalcBrightness() {
+    // v5 formula: Brightness_final = B_default + ((C_left - C_right) * 5)
+    // B_default = current pattern step brightness (during sequence) or last commanded
+    const base = (sequencePlaying && patterns[sequenceIndex])
+      ? patterns[sequenceIndex].brightness
+      : bDefault;
+    const netSteps = cLeft - cRight;
+    const adjustment = netSteps * 5;
+    totalBrightness = clamp(base + adjustment, 0, 100);
+    console.log('[recalc]', 'base=' + base, 'cL=' + cLeft, 'cR=' + cRight, 'net=' + netSteps, 'adj=' + adjustment, 'total=' + totalBrightness);
+    updateBrightnessDisplay();
+    // Show calculation detail
+    brightnessDetail.classList.remove('hidden');
+    brightnessDetail.textContent =
+      'B_default=' + base + '% | C_left=' + cLeft + ' C_right=' + cRight + ' | net=' + netSteps + ' | adj=' + (adjustment > 0 ? '+' : '') + adjustment + '% | final=' + totalBrightness + '%';
+  }
+
+  // ── SEND COMMAND ───────────────────────────────────────────
+  async function sendCommand(cmd) {
+    if (!writeChar) { toast('Not connected', 'error'); return false; }
+    try {
+      await writeChar.writeValueWithoutResponse(cmd);
+      if (cmd[0] === 0xBC) {
+        // During sequence, B_default comes from pattern step (handled in recalcBrightness)
+        // Outside sequence, update B_default from the brightness byte sent
+        if (!sequencePlaying) {
+          bDefault = cmd[5];
+        }
+        lastActiveCmd = new Uint8Array(cmd);
+        recalcBrightness();
+      }
+      return true;
+    } catch (err) {
+      toast(`Write failed: ${err.message}`, 'error');
+      return false;
+    }
+  }
+
+  // ── CONNECTION ─────────────────────────────────────────────
+  function setConnectScanning(scanning) {
+    btnConnect.disabled = scanning;
+    if (scanning) {
+      btnConnectLabel.innerHTML = '<span class="btn-spinner"></span>Scanning…';
+    } else {
+      btnConnectLabel.textContent = 'Connect';
+    }
+  }
+
+  async function connectDevice() {
+    if (!navigator.bluetooth) {
+      noBlWarning.hidden = false;
+      toast('Web Bluetooth not supported', 'error');
+      return;
+    }
+
+    setConnectScanning(true);
+    try {
+      toast('Scanning for Synthia…', 'info');
+      bleDevice = await navigator.bluetooth.requestDevice({
+        filters: [{ name: 'Synthia' }],
+        optionalServices: [NORDIC_UART_SERVICE],
+      });
+
+      bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+      const server  = await bleDevice.gatt.connect();
+      const service = await server.getPrimaryService(NORDIC_UART_SERVICE);
+      writeChar     = await service.getCharacteristic(TX_WRITE_CHAR);
+
+      const notifChar = await service.getCharacteristic(RX_NOTIFY_CHAR);
+      await notifChar.startNotifications();
+      notifChar.addEventListener('characteristicvaluechanged', onNotify);
+
+      setConnected(true);
+      toast(`Connected to ${bleDevice.name}`, 'success');
+    } catch (err) {
+      if (err.name !== 'NotFoundError') {
+        toast(`Connection failed: ${err.message}`, 'error');
+      }
+      bleDevice = null;
+      writeChar = null;
+    } finally {
+      setConnectScanning(false);
+    }
+  }
+
+  function disconnectDevice() {
+    if (bleDevice && bleDevice.gatt.connected) {
+      bleDevice.gatt.disconnect();
+    }
+  }
+
+  function onDisconnected() {
+    writeChar = null;
+    setConnected(false);
+    toast('Device disconnected', 'warning');
+  }
+
+  // ── NOTIFY HANDLER ─────────────────────────────────────────
+  function onNotify(event) {
+    const data = event.target.value;
+    if (data.byteLength < 4) return;
+
+    const header = data.getUint8(0);
+    if (header !== 0xCC) return;
+
+    const battery  = data.getUint8(1);
+    const btn1     = data.getUint8(2);
+    const btn2     = data.getUint8(3);
+    const battPct  = Math.round((battery / 0x64) * 100);
+
+    // Update dashboard values
+    batteryVal.textContent = `${battPct}%`;
+    btn1Val.textContent    = btn1;
+    btn2Val.textContent    = btn2;
+
+    // Battery color
+    const battColor = battPct > 50 ? 'text-green-400' : battPct > 20 ? 'text-yellow-400' : 'text-red-400';
+    document.getElementById('battery-icon').setAttribute('class', 'w-5 h-5 ' + battColor);
+
+    // ── Brightness calculation from button counts (v5 differential) ──
+    const prevTotal = totalBrightness;
+    cLeft  = btn1;   // C_left = Button1 cumulative count (Up)
+    cRight = btn2;   // C_right = Button2 cumulative count (Down)
+    console.log('[onNotify]', 'btn1=' + btn1, 'btn2=' + btn2, 'cLeft=' + cLeft, 'cRight=' + cRight, 'bDefault=' + bDefault);
+    recalcBrightness();
+
+    // Update sequence brightness label if playing
+    if (sequencePlaying) {
+      const lbl = document.getElementById('seq-brightness-label');
+      if (lbl) lbl.textContent = `Brightness: ${totalBrightness}%`;
+    }
+
+    // Adaptive re-send: if brightness changed, send updated command to hardware
+    if (totalBrightness !== prevTotal && writeChar) {
+      if (sequencePlaying) {
+        const p = patterns[sequenceIndex];
+        if (p) {
+          const cmd = buildBC(p.duration, p.color, p.freq, totalBrightness);
+          writeChar.writeValueWithoutResponse(cmd).catch(() => {});
+        }
+      } else if (lastActiveCmd) {
+        const cmd = new Uint8Array(lastActiveCmd);
+        cmd[5] = totalBrightness;
+        writeChar.writeValueWithoutResponse(cmd).catch(() => {});
+      }
+    }
+  }
+
+  // ── UI STATE ───────────────────────────────────────────────
+  function setConnected(connected) {
+    btnConnect.hidden    =  connected;
+    btnDisconnect.hidden = !connected;
+    statusDot.className  = `w-2.5 h-2.5 rounded-full transition-colors duration-300 ${
+      connected ? 'bg-green-400 shadow-[0_0_6px_2px_rgba(74,222,128,0.5)]' : 'bg-gray-600'
+    }`;
+    statusLabel.textContent = connected ? `Connected · ${bleDevice?.name ?? ''}` : 'Disconnected';
+    dashboard.classList.toggle('hidden', !connected);
+    disconnectedState.classList.toggle('hidden', connected);
+
+    // Enable/disable controls
+    const controls = [
+      document.getElementById('pattern-add'),
+      document.getElementById('seq-play'),
+    ];
+    controls.forEach(el => { if (el) el.disabled = !connected; });
+
+    if (!connected) {
+      batteryVal.textContent    = '—';
+      brightnessVal.textContent = '—';
+      brightnessBar.style.width = '0%';
+      brightnessDetail.classList.add('hidden');
+      btn1Val.textContent       = '—';
+      btn2Val.textContent       = '—';
+      // Reset brightness state
+      cLeft = 0;
+      cRight = 0;
+      bDefault = 10;
+      totalBrightness = 10;
+      lastActiveCmd = null;
+      // Stop sequence on disconnect
+      stopSequence();
+    }
+  }
+
+  // ── PATTERN BUILDER ────────────────────────────────────────
+  function addPattern() {
+    const i = patterns.length;
+    patterns.push({ color: 0x01, freq: 0x0A, duration: 30, brightness: 50 });
+    renderPatternRow(i);
+    reindexPatternRows();
+    document.getElementById('pattern-empty').classList.add('hidden');
+  }
+
+  function renderPatternRow(i) {
+    const container = document.getElementById('pattern-rows');
+    const row = document.createElement('div');
+    row.dataset.index = i;
+    row.className = 'flex items-center gap-2 bg-slate-700/50 border border-slate-600 rounded-xl p-3 text-sm';
+    row.innerHTML = `
+      <span class="row-num text-slate-400 font-mono w-5 shrink-0 text-right">${i+1}</span>
+      <select class="row-color flex-1 min-w-0 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-white text-xs">
+        <option value="1" selected>Blue</option>
+        <option value="0">Red</option>
+        <option value="2">White</option>
+        <option value="3">Green</option>
+        <option value="4">Off</option>
+      </select>
+      <input type="number" class="row-freq w-20 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-white text-xs" value="10" min="0" max="255" title="Frequency" />
+      <input type="number" class="row-dur w-16 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-white text-xs" value="30" min="1" max="65535" />
+      <input type="number" class="row-bright w-20 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-white text-xs" value="50" min="0" max="100" />
+      <button class="w-6 shrink-0 text-slate-500 hover:text-red-400 transition text-lg leading-none" onclick="deletePatternRow(this)">×</button>
+    `;
+    row.querySelectorAll('select, input').forEach(el => {
+      el.addEventListener('change', () => syncPatternFromRow(row));
+    });
+    container.appendChild(row);
+  }
+
+  function syncPatternFromRow(row) {
+    const i = parseInt(row.dataset.index);
+    patterns[i] = {
+      color: parseInt(row.querySelector('.row-color').value),
+      freq: parseInt(row.querySelector('.row-freq').value),
+      duration: parseInt(row.querySelector('.row-dur').value) || 1,
+      brightness: parseInt(row.querySelector('.row-bright').value) || 0,
+    };
+  }
+
+  function deletePatternRow(btn) {
+    const row = btn.closest('[data-index]');
+    const i = parseInt(row.dataset.index);
+    patterns.splice(i, 1);
+    row.remove();
+    reindexPatternRows();
+    if (patterns.length === 0) {
+      document.getElementById('pattern-empty').classList.remove('hidden');
+    }
+  }
+
+  function reindexPatternRows() {
+    const rows = document.querySelectorAll('#pattern-rows [data-index]');
+    rows.forEach((row, i) => {
+      row.dataset.index = i;
+      row.querySelector('.row-num').textContent = i + 1;
+    });
+  }
+
+  function setPatternRowsDisabled(dis) {
+    document.querySelectorAll('#pattern-rows select, #pattern-rows input, #pattern-rows button').forEach(el => {
+      el.disabled = dis;
+    });
+  }
+
+  function playSequence() {
+    if (patterns.length === 0) return;
+    document.querySelectorAll('#pattern-rows [data-index]').forEach(row => syncPatternFromRow(row));
+    sequencePlaying = true;
+    sequenceIndex = 0;
+    document.getElementById('seq-progress-row').classList.remove('hidden');
+    document.getElementById('seq-play').disabled = true;
+    document.getElementById('seq-stop').disabled = false;
+    setPatternRowsDisabled(true);
+    document.getElementById('pattern-add').disabled = true;
+    sendCurrentPattern();
+  }
+
+  async function sendCurrentPattern() {
+    if (!sequencePlaying || sequenceIndex >= patterns.length) { finishSequence(); return; }
+    // Highlight active row
+    document.querySelectorAll('#pattern-rows [data-index]').forEach(row => {
+      row.classList.remove('pattern-row-active');
+    });
+    const activeRow = document.querySelector(`#pattern-rows [data-index="${sequenceIndex}"]`);
+    if (activeRow) activeRow.classList.add('pattern-row-active');
+    updateSeqProgress();
+    const p = patterns[sequenceIndex];
+    // v5: apply differential brightness — B_default is pattern brightness,
+    // then recalcBrightness() applies ((C_left - C_right) * 5) offset
+    const effectiveBright = clamp(p.brightness + ((cLeft - cRight) * 5), 0, 100);
+    const cmd = buildBC(p.duration, p.color, p.freq, effectiveBright);
+    await sendCommand(cmd);
+    // Show effective brightness during sequence
+    const lbl = document.getElementById('seq-brightness-label');
+    if (lbl) lbl.textContent = `Brightness: ${totalBrightness}%`;
+    sequenceTimeout = setTimeout(() => nextPattern(), p.duration * 1000);
+  }
+
+  function nextPattern() {
+    sequenceIndex++;
+    if (sequenceIndex >= patterns.length) { finishSequence(); return; }
+    sendCurrentPattern();
+  }
+
+  function updateSeqProgress() {
+    const label = document.getElementById('seq-progress-label');
+    const bar = document.getElementById('seq-progress-bar');
+    if (label) label.textContent = `Pattern ${sequenceIndex + 1} of ${patterns.length}`;
+    if (bar) bar.style.width = `${((sequenceIndex) / patterns.length) * 100}%`;
+  }
+
+  function finishSequence() {
+    sequencePlaying = false;
+    if (sequenceTimeout) { clearTimeout(sequenceTimeout); sequenceTimeout = null; }
+    document.querySelectorAll('#pattern-rows [data-index]').forEach(row => row.classList.remove('pattern-row-active'));
+    const bar = document.getElementById('seq-progress-bar');
+    if (bar) bar.style.width = '100%';
+    const label = document.getElementById('seq-progress-label');
+    if (label) label.textContent = `Done — ${patterns.length} of ${patterns.length}`;
+    document.getElementById('seq-play').disabled = false;
+    document.getElementById('seq-stop').disabled = true;
+    setPatternRowsDisabled(false);
+    document.getElementById('pattern-add').disabled = false;
+  }
+
+  function stopSequence() {
+    sequencePlaying = false;
+    if (sequenceTimeout) { clearTimeout(sequenceTimeout); sequenceTimeout = null; }
+    document.querySelectorAll('#pattern-rows [data-index]').forEach(row => row.classList.remove('pattern-row-active'));
+    const seqProgressRow = document.getElementById('seq-progress-row');
+    if (seqProgressRow) seqProgressRow.classList.add('hidden');
+    const seqPlay = document.getElementById('seq-play');
+    const seqStop = document.getElementById('seq-stop');
+    const patternAdd = document.getElementById('pattern-add');
+    if (seqPlay) seqPlay.disabled = false;
+    if (seqStop) seqStop.disabled = true;
+    setPatternRowsDisabled(false);
+    if (patternAdd) patternAdd.disabled = false;
+  }
+
+  // ── EVENT LISTENERS ────────────────────────────────────────
+  btnConnect.addEventListener('click', connectDevice);
+  btnDisconnect.addEventListener('click', disconnectDevice);
+
+  // ── INIT ───────────────────────────────────────────────────
+  if (!navigator.bluetooth) {
+    noBlWarning.hidden = false;
+  }
+</script>
+</body>
+</html>
