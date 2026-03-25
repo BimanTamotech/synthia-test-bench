@@ -3,7 +3,7 @@
 import state from './state.js';
 import { startTimer } from './timer.js';
 import { toast } from './toast.js';
-import { updateBrightnessDisplay } from './brightness.js';
+import { recalcBrightness } from './brightness.js';
 
 export function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
@@ -48,12 +48,15 @@ export async function sendCommand(cmd) {
   try {
     await state.writeChar.writeValueWithoutResponse(cmd);
     if (cmd[0] === 0xBC) {
-      state.commandedBright = cmd[5];
-      state.totalBrightness = cmd[5];
-      state.baseBtn1 = state.lastBtn1;
-      state.baseBtn2 = state.lastBtn2;
+      // During sequence, don't overwrite commandedBright or reset baselines —
+      // the offset from buttons must persist across pattern steps (B-10 fix)
+      if (!state.sequencePlaying) {
+        state.commandedBright = cmd[5];
+        state.baseBtn1 = state.lastBtn1;
+        state.baseBtn2 = state.lastBtn2;
+      }
       state.lastActiveCmd = new Uint8Array(cmd);
-      updateBrightnessDisplay();
+      recalcBrightness();
     }
     return true;
   } catch (err) {

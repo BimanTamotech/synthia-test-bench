@@ -11,7 +11,13 @@ export function updateBrightnessDisplay() {
 }
 
 export function recalcBrightness() {
-  const adjustment = ((state.lastBtn2 - state.baseBtn2) - (state.lastBtn1 - state.baseBtn1)) * 5;
-  state.totalBrightness = clamp(state.commandedBright + adjustment, 0, 100);
+  // During sequence playback, use the pattern step's original brightness as base
+  // Outside sequence, use commandedBright (from last sent 0xBC command)
+  const base = (state.sequencePlaying && state.originalBrightness.length > 0)
+    ? state.originalBrightness[state.sequenceIndex]
+    : state.commandedBright;
+  const netSteps = (state.lastBtn2 - state.baseBtn2) - (state.lastBtn1 - state.baseBtn1);
+  const adjustment = netSteps * 5;
+  state.totalBrightness = clamp(base + adjustment, 0, 100);
   updateBrightnessDisplay();
 }
