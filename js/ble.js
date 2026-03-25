@@ -93,26 +93,6 @@ function onNotify(event) {
   document.getElementById('battery-icon').className = `w-5 h-5 ${battColor}`;
 
   // Brightness calculation from button counts
-  if (!state.hasReceivedFirstNotify) {
-    state.lastBtn1 = btn1;
-    state.lastBtn2 = btn2;
-    state.baseBtn1 = btn1;
-    state.baseBtn2 = btn2;
-    state.hasReceivedFirstNotify = true;
-    return;
-  }
-
-  // During sequence: accumulate only INCREASES in button counts.
-  // This prevents stale BLE response packets (which echo old counts)
-  // from resetting the brightness offset back to zero.
-  if (state.sequencePlaying) {
-    const btn1Inc = Math.max(0, btn1 - state.lastBtn1);
-    const btn2Inc = Math.max(0, btn2 - state.lastBtn2);
-    if (btn1Inc > 0 || btn2Inc > 0) {
-      state.seqBrightnessOffset += (btn2Inc - btn1Inc) * 5;
-    }
-  }
-
   const prevTotal = state.totalBrightness;
   state.lastBtn1 = btn1;
   state.lastBtn2 = btn2;
@@ -124,22 +104,18 @@ function onNotify(event) {
     if (lbl) lbl.textContent = `Brightness: ${state.totalBrightness}%`;
   }
 
-  // Adaptive re-send
+  // Adaptive re-send (non-sequence only — no re-send during sequence to
+  // avoid stale BLE response packets resetting the brightness offset)
   if (state.totalBrightness !== prevTotal) {
     if (state.sequencePlaying) {
-      // Update all pattern rows to reflect the new offset
+      // Update offset and pattern rows (UI only — no device re-send)
+      state.seqBrightnessOffset = ((state.lastBtn2 - state.baseBtn2) - (state.lastBtn1 - state.baseBtn1)) * 5;
       state.patterns.forEach((p, i) => {
         p.brightness = clamp(state.originalBrightness[i] + state.seqBrightnessOffset, 0, 100);
       });
       document.querySelectorAll('#pattern-rows .row-bright').forEach((input, i) => {
         input.value = state.patterns[i].brightness;
       });
-      // Re-send current pattern step with updated brightness
-      const p = state.patterns[state.sequenceIndex];
-      if (p && state.writeChar) {
-        const cmd = buildBC(p.duration, p.color, p.freq, state.totalBrightness);
-        state.writeChar.writeValueWithoutResponse(cmd).catch(() => {});
-      }
     } else if (state.lastActiveCmd && state.writeChar) {
       const cmd = new Uint8Array(state.lastActiveCmd);
       cmd[5] = state.totalBrightness;

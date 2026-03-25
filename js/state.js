@@ -13,7 +13,6 @@ const state = {
   baseBtn2: 0,
   commandedBright: 10,
   totalBrightness: 10,
-  hasReceivedFirstNotify: false,
   lastActiveCmd: null,
 
   // Command Timer

@@ -72,7 +72,6 @@ export function setConnected(connected) {
     state.baseBtn2 = 0;
     state.commandedBright = 10;
     state.totalBrightness = 10;
-    state.hasReceivedFirstNotify = false;
     state.lastActiveCmd = null;
     state.originalBrightness = [];
     state.seqBrightnessOffset = 0;
