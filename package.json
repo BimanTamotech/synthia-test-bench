@@ -1,0 +1,6 @@
+{
+  "name": "synthia-controller-v2",
+  "version": "2.0.0",
+  "description": "BLE LED Controller for Synthia/VS-Shift devices",
+  "private": true
+}
